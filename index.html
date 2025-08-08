@@ -1,1 +1,335 @@
-<!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8" /> <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <title>StickyNotes+ v2</title> <style> :root { --bg: #f6f7f8; --card-bg: #ffffff; --accent: #4a90e2; --text: #333333; --muted: #666666; font-family: Arial, Helvetica, sans-serif; } body { background: var(--bg); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; } header { display: flex; align-items: center; padding: 1rem; background: var(--card-bg); box-shadow: 0 1px 4px rgba(0,0,0,0.08); gap: 0.5rem; } #searchInput { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; } #newNoteBtn { padding: 0.5rem 1rem; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; } #notesContainer { flex: 1; overflow-y: auto; padding: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; } .note-card { background: var(--card-bg); border-radius: 6px; padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 0.5rem; } .note-card h3 { margin: 0; font-size: 1.1rem; color: var(--text); } .note-card p { margin: 0; font-size: 0.9rem; color: var(--muted); white-space: pre-wrap; } .attachments { display: flex; flex-direction: column; gap: 0.25rem; } .attachment-item { font-size: 0.85rem; color: var(--accent); text-decoration: underline; cursor: pointer; } .actions { display: flex; gap: 0.5rem; margin-top: auto; } .actions button { padding: 0.25rem 0.5rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem; } .delete { background: #e74c3c; color: #fff; } .edit { background: var(--accent); color: #fff; } .drag-handle { cursor: grab; margin-right: 0.5rem; } /* Modal styling */ #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; } #modalContent { background: var(--card-bg); padding: 1rem; border-radius: 6px; width: 90%; max-width: 500px; display: flex; flex-direction: column; gap: 0.5rem; } #modalContent input, #modalContent textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; } #modalContent textarea { min-height: 80px; resize: vertical; } #attachmentList { font-size: 0.8rem; margin-top: 0.25rem; } .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; } .modal-actions button { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; } .save-btn { background: var(--accent); color: #fff; } .cancel-btn { background: #cccccc; color: #333; } </style> </head> <body> <header> <input id="searchInput" placeholder="Search notes..." /> <button id="newNoteBtn">New Note</button> </header> <div id="notesContainer"></div> <div id="modal"> <div id="modalContent"> <label for="noteTitle">Title</label> <input id="noteTi; contentEl.innerHTML = markdownToHtml(note.content); card.appendChild(contentEl); // attachments listing if (note.attachments && note.attachments.length > 0) { const attachmentsEl = document.createElement('div'); attachmentsEl.className = 'attachments'; note.attachments.forEach(att => { const item = document.createElement('div'); item.className = 'attachment-item'; item.textContent = att.name; item.addEventListener('click', () => { if (att.type.startsWith('image')) { const win = window.open(''); win.document.write(`<img src="${att.data}" alt="${att.name}" style="max-width:100%;" />`); } else if (att.type.startsWith('audio')) { const win = window.open(''); win.document.write(`<audio controls src="${att.data}"></audio>`); } else { // other file types: trigger download const link = document.createElement('a'); link.href = att.data; link.download = att.name; link.click(); } }); attachmentsEl.appendChild(item); }); card.appendChild(attachmentsEl); } // actions (edit, delete) const actions = document.createElement('div'); actions.className = 'actions'; const editBtn = document.createElement('button'); editBtn.className = 'edit'; editBtn.textContent = 'Edit'; editBtn.onclick = () => openModal(index); const delBtn = document.createElement('button'); delBtn.className = 'delete'; delBtn.textContent = 'Delete'; delBtn.onclick = () => { if (confirm('Delete this note?')) { notes.splice(index, 1); saveToStorage(); renderNotes(); } }; actions.appendChild(editBtn); actions.appendChild(delBtn); card.appendChild(actions); // drag events for reorder card.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', index); }); card.addEventListener('dragover', (e) => { e.preventDefault(); }); card.addEventListener('drop', (e) => { e.preventDefault(); const fromIndex = parseInt(e.dataTransfer.getData('text/plain')); const toIndex = parseInt(card.dataset.index); if (fromIndex !== toIndex) { const moved = notes.splice(fromIndex, 1)[0]; notes.splice(toIndex, 0, moved); saveToStorage(); renderNotes(); } }); notesContainer.appendChild(card); }); } function openModal(index) { editingIndex = typeof index === 'number' ? index : null; if (editingIndex !== null) { const note = notes[editingIndex]; noteTitle.value = note.title; noteContent.value = note.content; // attachments list for editing (existing attachments) attachmentList.innerHTML = ''; note.attachments.forEach(att => { const div = document.createElement('div'); div.textContent = att.name; attachmentList.appendChild(div); }); } else { noteTitle.value = ''; noteContent.value = ''; attachmentList.innerHTML = ''; } fileInput.value = ''; recordingChunks = []; modal.style.display = 'flex'; } function closeModal() { modal.style.display = 'none'; } newNoteBtn.onclick = () => openModal(null); cancelNoteBtn.onclick = closeModal; searchInput.oninput = renderNotes; // handle attachments preview on file selection fileInput.onchange = () => { const files = Array.from(fileInput.files); attachmentList.innerHTML = ''; files.forEach(f => { const div = document.createElement('div'); div.textContent = f.name; attachmentList.appendChild(div); }); }; // save note (new or edit) saveNoteBtn.onclick = () => { const title = noteTitle.value.trim(); const content = noteContent.value.trim(); // get existing attachments if editing const existing = editingIndex !== null ? notes[editingIndex].attachments.slice() : []; const files = Array.from(fileInput.files); // convert new files to data URLs Promise.all(files.map(file => { return new Promise(resolve => { const reader = new FileReader(); reader.onload = e => { resolve({ name: file.name, type: file.type, data: e.target.result }); }; reader.readAsDataURL(file); }); })).then(newAtts => { const attachments = existing.concat(newAtts); const noteObj = { title, content, attachments }; if (editingIndex !== null) { notes[editingIndex] = noteObj; } else { notes.push(noteObj); } saveToStorage(); renderNotes(); closeModal(); }); }; // audio recording logic recordBtn.onclick = async () => { if (mediaRecorder && mediaRecorder.state === 'recording') { mediaRecorder.stop(); recordBtn.textContent = 'Record Audio'; return; } try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); recordingChunks = []; mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) { recordingChunks.push(e.data); } }; mediaRecorder.onstop = () => { const blob = new Blob(recordingChunks, { type: 'audio/webm' }); const reader = new FileReader(); reader.onload = e => { // append to attachments list (in UI only; will be saved on Save click) const obj = { name: `Recording_${new Date().toISOString()}.webm`, type: 'audio/webm', data: e.target.result }; // show preview in attachments list const div = document.createElement('div'); div.textContent = obj.name; attachmentList.appendChild(div); // store temporarily by pushing to fileInput's files (not possible) or storing separately; we'll push to a hidden array // We'll use the fileInput's dataset to store additional attachments const extras = JSON.parse(fileInput.dataset.extras || '[]'); extras.push(obj); fileInput.dataset.extras = JSON.stringify(extras); }; reader.readAsDataURL(blob); }; mediaRecorder.start(); recordBtn.textContent = 'Stop Recording'; } catch (err) { alert('Could not start recording: ' + err.message); } }; // Modify save logic to also include extra attachments from recordings saveNoteBtn.addEventListener('click', () => { // This is handled above; but we also need to include extras from recording }); // Overwrite save function to handle extras after attachments conversion const originalSave = saveNoteBtn.onclick; saveNoteBtn.onclick = () => { const title = noteTitle.value.trim(); const content = noteContent.value.trim(); const existing = editingIndex !== null ? notes[editingIndex].attachments.slice() : []; const files = Array.from(fileInput.files); const extras = JSON.parse(fileInput.dataset.extras || '[]'); Promise.all(files.map(file => { return new Promise(resolve => { const reader = new FileReader(); reader.onload = e => { resolve({ name: file.name, type: file.type, data: e.target.result }); }; reader.readAsDataURL(file); }); })).then(newAtts => { const attachments = existing.concat(newAtts).concat(extras); const noteObj = { title, content, attachments }; if (editingIndex !== null) { notes[editingIndex] = noteObj; } else { notes.push(noteObj); } // Reset extras and file input dataset fileInput.dataset.extras = '[]'; saveToStorage(); renderNotes(); closeModal(); }); }; // initialise on load renderNotes(); </script> </body> </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StickyNotes+</title>
+  <meta name="description" content="Futuristic sticky notes: Markdown, attachments (images, audio, any file), inline audio recorder, fuzzy search, pin/archive, drag-to-reorder, quick tag filters. Local-first & PWA-ready." />
+  <style>
+    :root{ --bg:#0b0f14; --panel:#111825; --panel-2:#0e1522; --text:#e7edf5; --muted:#a9b4c2; --brand:#6aa3ff; --accent:#71f3c0; --danger:#ff6b6b; --shadow:0 8px 30px rgba(0,0,0,.35); --radius:18px }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,"Helvetica Neue",Arial; background:radial-gradient(1200px 800px at 20% -10%,#142033 0%,rgba(20,32,51,0) 70%),radial-gradient(1200px 800px at 120% 10%,#1a2540 0%,rgba(26,37,64,0) 70%),var(--bg); color:var(--text)}
+    .app{max-width:1200px; margin:24px auto; padding:0 16px 96px}
+    header{position:sticky; top:0; z-index:10; backdrop-filter:saturate(160%) blur(8px); background:linear-gradient(180deg,rgba(11,15,20,.9),rgba(11,15,20,.35)); border-bottom:1px solid rgba(255,255,255,.06)}
+    .toolbar{display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:center; padding:16px 0}
+    .brand{display:flex; gap:10px; align-items:center}
+    .logo{width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg,var(--brand),var(--accent)); box-shadow:var(--shadow)}
+    .brand h1{margin:0; font-size:20px}
+    .search{display:flex; align-items:center; gap:8px; background:var(--panel); border-radius:12px; padding:10px 12px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+    .search input{flex:1; background:transparent; border:0; outline:0; color:var(--text); font-size:15px}
+    .kbd{font-size:12px; padding:2px 6px; border-radius:8px; border:1px solid rgba(255,255,255,.12); color:var(--muted)}
+    .btn{cursor:pointer; border:0; color:var(--text); background:var(--panel); padding:10px 14px; border-radius:12px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.primary{background:linear-gradient(180deg, rgba(106,163,255,.25), rgba(106,163,255,.12)); box-shadow:inset 0 0 0 1px rgba(106,163,255,.45)}
+    .btn.danger{background:rgba(255,107,107,.15); box-shadow:inset 0 0 0 1px rgba(255,107,107,.45)}
+    .layout{display:grid; grid-template-columns: 340px 1fr; gap:18px; margin-top:18px}
+    @media (max-width: 980px){ .layout{grid-template-columns: 1fr} }
+
+    .composer{position:sticky; top:76px; align-self:start; background:var(--panel-2); padding:14px; border-radius:var(--radius); box-shadow:var(--shadow); border:1px solid rgba(255,255,255,.06)}
+    .composer input,.composer textarea{width:100%; background:transparent; border:0; outline:0; color:var(--text)}
+    .composer input{font-size:16px; font-weight:600; padding:8px; border-radius:10px; background:rgba(255,255,255,.03)}
+    .composer textarea{resize:vertical; min-height:110px; padding:10px; margin-top:8px; border-radius:10px; background:rgba(255,255,255,.03)}
+    .composer .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px}
+    .chip{font-size:12px; padding:6px 8px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:var(--muted)}
+    .color-swatch{width:22px; height:22px; border-radius:8px; border:1px solid rgba(255,255,255,.18); cursor:pointer}
+    .dropzone{border:1px dashed rgba(255,255,255,.18); border-radius:12px; padding:10px; font-size:13px; color:var(--muted)}
+    .dropzone.drag{border-color:var(--accent); color:var(--text); background:rgba(113,243,192,.06)}
+
+    .row-meta{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0 12px}
+    .tagchips{display:flex; gap:6px; flex-wrap:wrap}
+
+    .notes{display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px}
+    .note{background:var(--panel); padding:12px; border-radius:16px; box-shadow:var(--shadow); border:1px solid rgba(255,255,255,.06); display:flex; flex-direction:column; gap:8px; position:relative}
+    .note[draggable="true"]{outline:1px dashed rgba(255,255,255,.12)}
+    .note .title{font-weight:700}
+    .note .meta{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:12px}
+    .note .tags{display:flex; gap:6px; flex-wrap:wrap}
+    .note .actions{display:flex; gap:6px; margin-top:auto}
+    .note .pin{position:absolute; top:10px; right:10px; font-size:18px; opacity:.7; cursor:pointer; user-select:none}
+    .note.pinned{outline:1px dashed rgba(255,255,255,.25)}
+    .files{display:flex; flex-direction:column; gap:6px}
+    .file{display:flex; gap:8px; align-items:center; background:rgba(255,255,255,.04); padding:6px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.06)}
+    .file .name{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .file .mini{font-size:12px; color:var(--muted)}
+
+    .tabs{display:flex; gap:8px; margin:10px 0}
+    .tabs button{background:transparent; border:0; color:var(--muted); padding:6px 10px; border-radius:10px; cursor:pointer}
+    .tabs button.active{color:var(--text); background:rgba(255,255,255,.08)}
+    .empty{opacity:.7; text-align:center; padding:40px}
+    .footer{margin-top:24px; color:var(--muted); font-size:12px; text-align:center}
+
+    dialog{background:var(--panel); color:var(--text); border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:0; box-shadow:var(--shadow); width:min(860px, 96vw)}
+    dialog header{padding:16px; border-bottom:1px solid rgba(255,255,255,.08)}
+    dialog .content{padding:16px}
+    dialog .actions{display:flex; justify-content:flex-end; gap:8px; padding:16px}
+    dialog .viewer{display:flex; justify-content:center; align-items:center; min-height:220px}
+    img.preview{max-width:100%; max-height:60vh; border-radius:12px; border:1px solid rgba(255,255,255,.08)}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="toolbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <h1>StickyNotes+</h1>
+        </div>
+        <div class="search" role="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/></svg>
+          <input id="search" placeholder="Search notes, #tags, color:mint, has:files, type:image/audio/doc…" autocomplete="off" />
+          <span class="kbd">/</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <label class="chip"><input type="checkbox" id="mdPreview"/> Markdown preview</label>
+          <button id="newBtn" class="btn primary">New (n)</button>
+          <button id="exportBtn" class="btn">Backup</button>
+          <button id="importBtn" class="btn">Restore</button>
+          <button id="helpBtn" class="btn">Help</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="composer" aria-label="Create note">
+        <input id="title" placeholder="Title" />
+        <textarea id="body" placeholder="Write your note. Use #tags, task lists (- [ ] thing), links, **bold**, *italic*, `code`. Drag & drop files, paste images, or record audio."></textarea>
+        <div class="dropzone" id="dz">Drop files here or click Attach</div>
+        <div id="attached" class="files" aria-live="polite"></div>
+        <div class="row">
+          <span class="chip">Tags auto-extracted</span>
+          <div class="row" id="colors"></div>
+          <label class="chip"><input type="checkbox" id="pinToggle"/> Pin</label>
+          <button id="attachBtn" class="btn">Attach</button>
+          <button id="recordBtn" class="btn">🎙️ Record</button>
+          <button id="save" class="btn primary">Save (⌘/Ctrl+S)</button>
+          <button id="clear" class="btn">Clear (Esc)</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="tabs" role="tablist">
+          <button class="active" data-tab="all" role="tab" aria-selected="true">All</button>
+          <button data-tab="pinned" role="tab">Pinned</button>
+          <button data-tab="archived" role="tab">Archived</button>
+        </div>
+
+        <div class="row-meta">
+          <div style="display:flex; gap:8px; align-items:center">
+            <span class="chip">Sort:</span>
+            <select id="sort" class="btn" aria-label="Sort notes">
+              <option value="updated">Last updated</option>
+              <option value="created">Created</option>
+              <option value="title">Title</option>
+              <option value="color">Color</option>
+              <option value="manual">Manual (drag)</option>
+            </select>
+          </div>
+          <div class="row">
+            <label class="chip"><input type="checkbox" id="autoTag" checked/> Smart tags</label>
+            <label class="chip"><input type="checkbox" id="liveSearch" checked/> Live search</label>
+          </div>
+        </div>
+
+        <div id="tagchips" class="tagchips"></div>
+        <div id="grid" class="notes" aria-live="polite"></div>
+        <div id="empty" class="empty" hidden>Nothing here yet. Create your first note →</div>
+      </section>
+    </div>
+
+    <div class="footer">Local-first • Attachments stored in your browser (IndexedDB) • v2.0</div>
+  </div>
+
+  <dialog id="help">
+    <header><strong>Quick help</strong></header>
+    <div class="content">
+      <ul>
+        <li><b>New note:</b> N</li>
+        <li><b>Focus search:</b> /</li>
+        <li><b>Save:</b> Ctrl/Cmd + S</li>
+        <li><b>Clear composer:</b> Esc</li>
+        <li>Attach via button, drag & drop, or paste (images).</li>
+        <li>Record audio and save as an attachment.</li>
+        <li>Search operators: <code>tag:#todo</code>, <code>color:mint</code>, <code>has:files</code>, <code>type:image|audio|pdf|doc</code>, <code>is:pinned</code>, <code>is:archived</code></li>
+        <li>Manual order: choose <b>Sort → Manual</b>, then drag cards.</li>
+        <li>Backups: metadata-only or full (includes attachments).</li>
+      </ul>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="help.close()">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="viewer">
+    <header><strong>Attachment</strong></header>
+    <div class="content viewer" id="viewerBody"></div>
+    <div class="actions">
+      <a id="viewerDownload" class="btn" href="#" download>Download</a>
+      <button class="btn" onclick="viewer.close()">Close</button>
+    </div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script>
+  ;(()=>{
+    // ---- Utils -----------------------------------------------------------
+    const $ = s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s))
+    const now = ()=>new Date().toISOString(), uid=()=>Math.random().toString(36).slice(2,10)
+    const KB=1024, MB=1024*KB, MAX_FILE=25*MB, MAX_TOTAL=400*MB
+
+    const DEFAULT_COLORS=[{id:'lemon',hex:'#fff59d'},{id:'mint',hex:'#b9fbc0'},{id:'sky',hex:'#bcd4ff'},{id:'peach',hex:'#ffd3b6'},{id:'lavender',hex:'#e0bbff'},{id:'rose',hex:'#ffc4d6'}]
+
+    const KEY='sn+'
+    const save=(k,v)=>localStorage.setItem(KEY+k, JSON.stringify(v))
+    const load=(k,f)=>{ try{ return JSON.parse(localStorage.getItem(KEY+k)) ?? f }catch{ return f } }
+
+    const state={
+      notes: load('notes', []).map((n,i)=>({order:i, attachments:(n.attachments||[]), ...n})),
+      tab:'all', query:'', sort: load('sort','updated'), autoTag: load('autoTag',true), liveSearch: load('liveSearch',true), mdPreview: load('mdPreview',false), color:'lemon', editingId:null,
+      composerFiles: [], // {id,name,type,size}
+    }
+
+    // ---- IndexedDB for attachments --------------------------------------
+    let dbPromise
+    function db(){
+      if(dbPromise) return dbPromise
+      dbPromise = new Promise((resolve, reject)=>{
+        const r = indexedDB.open('stickynotesplus', 1)
+        r.onupgradeneeded = ()=>{ const db=r.result; if(!db.objectStoreNames.contains('files')) db.createObjectStore('files', {keyPath:'id'}) }
+        r.onsuccess = ()=>resolve(r.result); r.onerror = ()=>reject(r.error)
+      })
+      return dbPromise
+    }
+    async function dbPutFile(fileRec, blob){ const d=await db(); return new Promise((res,rej)=>{ const tx=d.transaction('files','readwrite'); tx.objectStore('files').put({...fileRec, data:blob}); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error) }) }
+    async function dbGetFile(id){ const d=await db(); return new Promise((res,rej)=>{ const tx=d.transaction('files','readonly'); const req=tx.objectStore('files').get(id); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error) }) }
+    async function dbDeleteFile(id){ const d=await db(); return new Promise((res,rej)=>{ const tx=d.transaction('files','readwrite'); tx.objectStore('files').delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error) }) }
+    async function totalStorage(){ const d=await db(); return new Promise((res)=>{ const tx=d.transaction('files','readonly'); const store=tx.objectStore('files'); const req=store.getAllKeys(); req.onsuccess=async()=>{ const keys=req.result; let sum=0; const tx2=d.transaction('files','readonly'); const st=tx2.objectStore('files'); const req2=st.getAll(); req2.onsuccess=()=>{ req2.result.forEach(x=> sum += (x.data?.size||0)); res(sum) }; req2.onerror=()=>res(sum) }; req.onerror=()=>res(0) }) }
+
+    // ---- Markdown (light) ------------------------------------------------
+    const esc = s => (s||'').replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))
+    function md(s){ let t = esc(s)
+      t = t.replace(/`([^`]+)`/g,'<code>$1</code>')
+      t = t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      t = t.replace(/\*([^*]+)\*/g,'<em>$1</em>')
+      t = t.replace(/\b(https?:\/\/[^\s)]+)\b/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
+      t = t.replace(/^\s*[-*] \[ \] (.*)$/gm,'<label><input type="checkbox" disabled> $1</label>')
+      t = t.replace(/^\s*[-*] \[x\] (.*)$/gmi,'<label><input type="checkbox" checked disabled> $1</label>')
+      t = t.replace(/\n/g,'<br>'); return t }
+
+    // ---- Smart tags ------------------------------------------------------
+    const SMART_TAGS=[{tag:'#todo',hints:['todo','to-do','task','follow up','follow-up','action item']},{tag:'#idea',hints:['idea','brainstorm','concept']},{tag:'#meeting',hints:['meet','minutes','agenda','call','sync','standup']},{tag:'#link',hints:['http://','https://','www.']},{tag:'#urgent',hints:['urgent','asap','priority','important']}]
+    function extractTags(text){ const direct=(text.match(/#\w+/g)||[]).map(t=>t.toLowerCase()); if(!state.autoTag) return [...new Set(direct)]; const lc=(text||'').toLowerCase(); const inferred=SMART_TAGS.filter(x=>x.hints.some(h=>lc.includes(h))).map(x=>x.tag); return [...new Set([...direct,...inferred])] }
+
+    // ---- UI Pieces -------------------------------------------------------
+    function renderColorPalette(){ const c=$('#colors'); c.innerHTML=''; DEFAULT_COLORS.forEach(col=>{ const b=document.createElement('button'); b.type='button'; b.className='color-swatch'; b.title=col.id; b.style.background=col.hex; b.setAttribute('aria-label',col.id); b.addEventListener('click',()=>{ state.color=col.id; $$('.color-swatch').forEach(x=>x.style.outline='none'); b.style.outline='2px solid #fff' }); if(col.id===state.color) b.style.outline='2px solid #fff'; c.appendChild(b) }) }
+    function topTags(){ const m=new Map(); state.notes.forEach(n=> (n.tags||[]).forEach(t=> m.set(t,(m.get(t)||0)+1))); return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10) }
+    function renderTagChips(){ const host=$('#tagchips'); host.innerHTML=''; topTags().forEach(([tag,count])=>{ const chip=document.createElement('button'); chip.className='chip'; chip.type='button'; chip.title=`${count} note(s)`; chip.textContent=`${tag} (${count})`; chip.addEventListener('click',()=>{ $('#search').value=`tag:${tag.replace('#','')}`; state.query=$('#search').value; draw() }); host.appendChild(chip) }) }
+
+    function fileIcon(type){ if(!type) return '📎'; if(type.startsWith('image/')) return '🖼️'; if(type.startsWith('audio/')) return '🎵'; if(type==='application/pdf') return '📄'; return '📎' }
+    function fmtSize(n){ if(n>MB) return (n/MB).toFixed(1)+' MB'; if(n>KB) return Math.round(n/KB)+' KB'; return n+' B' }
+
+    function fileRow(meta, opts={showRemove:true}){ const row=document.createElement('div'); row.className='file'; row.dataset.id=meta.id; row.innerHTML=`<span>${fileIcon(meta.type)}</span><span class="name">${meta.name}</span><span class="mini">${fmtSize(meta.size)}</span>`; const openBtn=btn('Open',()=>openAttachment(meta.id)); const dlBtn=document.createElement('a'); dlBtn.className='btn'; dlBtn.textContent='Download'; dlBtn.href='#'; dlBtn.addEventListener('click',async(e)=>{ e.preventDefault(); const f=await dbGetFile(meta.id); if(!f||!f.data) return; const url=URL.createObjectURL(f.data); dlBtn.href=url; dlBtn.download=meta.name; setTimeout(()=>URL.revokeObjectURL(url), 4000) }); row.append(openBtn, dlBtn); if(opts.showRemove){ const rm=btn('Remove',()=>removeComposerFile(meta.id)); rm.classList.add('danger'); row.appendChild(rm) } return row }
+
+    async function openAttachment(id){ const rec=await dbGetFile(id); if(!rec||!rec.data){ alert('Missing file data.'); return } const vBody=$('#viewerBody'); vBody.innerHTML=''; const url=URL.createObjectURL(rec.data); $('#viewerDownload').href=url; $('#viewerDownload').download=rec.name; if(rec.type?.startsWith('image/')){ const img=document.createElement('img'); img.className='preview'; img.alt=rec.name; img.src=url; vBody.appendChild(img) } else if(rec.type?.startsWith('audio/')){ const audio=document.createElement('audio'); audio.controls=true; audio.src=url; vBody.appendChild(audio) } else if(rec.type==='application/pdf'){ const iframe=document.createElement('iframe'); iframe.style.width='100%'; iframe.style.height='60vh'; iframe.src=url; vBody.appendChild(iframe) } else { const p=document.createElement('p'); p.textContent='Preview not available. Use Download.'; vBody.appendChild(p) }
+      viewer.showModal(); viewer.addEventListener('close', ()=> URL.revokeObjectURL(url), {once:true}) }
+
+    function renderAttachedList(){ const host=$('#attached'); host.innerHTML=''; state.composerFiles.forEach(m=> host.appendChild(fileRow(m))) }
+
+    function btn(text, onClick){ const x=document.createElement('button'); x.className='btn'; x.type='button'; x.textContent=text; x.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); onClick() }); return x }
+
+    function noteCard(n){ const el=document.createElement('article'); el.className='note'; el.style.background=shadeFor(n.color); el.dataset.id=n.id; if(n.pinned) el.classList.add('pinned')
+      const manualDrag=(state.sort==='manual' && state.tab==='all'); if(manualDrag){ el.setAttribute('draggable','true') }
+      const pin=document.createElement('div'); pin.className='pin'; pin.title='Pin/unpin'; pin.textContent = n.pinned ? '📌' : '📍'; pin.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); n.pinned=!n.pinned; n.updatedAt=now(); persist(); draw() })
+      const title=document.createElement('div'); title.className='title'; title.textContent=n.title||''
+      const body=document.createElement('div'); body.className='body'; if(state.mdPreview){ body.classList.add('markdown'); body.innerHTML=md(n.body||'') } else { body.textContent=n.body||'' }
+      const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML=`<span>${formatDate(n.updatedAt)}</span>${n.archived? ' <span class="chip">Archived</span>':''}`
+      const tags=document.createElement('div'); tags.className='tags'; tags.innerHTML=(n.tags||[]).map(t=>`<span class="chip">${t}</span>`).join('')
+      const files=document.createElement('div'); files.className='files'; (n.attachments||[]).forEach(m=>{ const r=fileRow(m, {showRemove:false}); files.appendChild(r) })
+      const actions=document.createElement('div'); actions.className='actions'
+      const editBtn=btn('Edit',()=>loadIntoComposer(n))
+      const archBtn=btn(n.archived?'Unarchive':'Archive',()=>{ n.archived=!n.archived; n.updatedAt=now(); persist(); draw() })
+      const delBtn=btn('Delete',()=>{ if(confirm('Delete this note?')){ deleteNote(n.id) } })
+      delBtn.classList.add('danger'); actions.append(editBtn, archBtn, delBtn)
+      if(manualDrag){ el.addEventListener('dragstart',e=>{ e.dataTransfer.setData('text/plain', n.id); el.style.opacity='.6' }); el.addEventListener('dragend',()=>{ el.style.opacity='1' }); el.addEventListener('dragover',e=>{ e.preventDefault(); el.style.outline='2px dashed rgba(255,255,255,.35)' }); el.addEventListener('dragleave',()=>{ el.style.outline='' }); el.addEventListener('drop',e=>{ e.preventDefault(); el.style.outline=''; const draggedId=e.dataTransfer.getData('text/plain'); if(!draggedId||draggedId===n.id) return; reorderByIds(draggedId, n.id) }) }
+      el.append(pin,title,body,meta,tags,files,actions); return el }
+
+    function reorderByIds(aId,bId){ const a=state.notes.find(x=>x.id===aId), b=state.notes.find(x=>x.id===bId); if(!a||!b) return; const arr=state.notes; const ai=arr.indexOf(a), bi=arr.indexOf(b); arr.splice(bi,0,arr.splice(ai,1)[0]); arr.forEach((n,idx)=> n.order=idx); persist(); draw() }
+
+    function draw(){ const grid=$('#grid'), empty=$('#empty'); renderTagChips(); const filtered=filterAndSort(); grid.innerHTML=''; const frag=document.createDocumentFragment(); filtered.forEach(n=> frag.appendChild(noteCard(n))); grid.appendChild(frag); empty.hidden = filtered.length>0 }
+
+    function filterAndSort(){ let items=[...state.notes]
+      if(state.tab==='pinned') items=items.filter(n=>n.pinned && !n.archived)
+      else if(state.tab==='archived') items=items.filter(n=>n.archived)
+      else items=items.filter(n=>!n.archived)
+      const q=state.query.trim(); if(q){ const ops=parseOps(q); if(ops.predicates.length){ items=items.filter(ops.eval) } if(ops.text){ const fuse=new Fuse(items,{keys:['title','body','tags','attachments.name'], threshold:.34, ignoreLocation:true}); items=fuse.search(ops.text).map(r=>r.item) } }
+      const by=state.sort; if(by==='manual'){ items.sort((a,b)=>(a.order??0)-(b.order??0)) } else { items.sort((a,b)=>{ if(by==='title') return (a.title||'').localeCompare(b.title||''); if(by==='color') return (a.color||'').localeCompare(b.color||''); if(by==='created') return (b.createdAt||'').localeCompare(a.createdAt||''); return (b.updatedAt||'').localeCompare(a.updatedAt||'') }); if(state.tab==='all') items.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)) }
+      return items }
+
+    function parseOps(q){ const parts=q.split(/\s+/), preds=[], rest=[]; for(const p of parts){ if(p.startsWith('tag:')){ const v=p.slice(4).toLowerCase(); preds.push(n=> (n.tags||[]).includes('#'+v)||(n.tags||[]).includes(v)) } else if(p.startsWith('color:')){ const v=p.slice(6).toLowerCase(); preds.push(n=> (n.color||'').toLowerCase()===v) } else if(p==='is:pinned'){ preds.push(n=>!!n.pinned) } else if(p==='is:archived'){ preds.push(n=>!!n.archived) } else if(p==='has:files'){ preds.push(n=> (n.attachments||[]).length>0) } else if(p.startsWith('type:')){ const v=p.slice(5); preds.push(n=> (n.attachments||[]).some(a=> (a.type||'').startsWith(v))) } else rest.push(p) } const text=rest.join(' ').trim(); return {predicates:preds, text, eval:n=>preds.every(f=>f(n))} }
+
+    function formatDate(iso){ try{ const d=new Date(iso); return d.toLocaleString() }catch{ return '' } }
+    function shadeFor(color){ const m={lemon:'#2a2a10', mint:'#143125', sky:'#0f2638', peach:'#3a2517', lavender:'#2e2141', rose:'#3a1e28'}; return `linear-gradient(180deg, ${m[color]||'#1a1a1a'} 0%, rgba(0,0,0,.2) 100%)` }
+    function persist(){ save('notes', state.notes); save('sort', state.sort); save('autoTag', state.autoTag); save('liveSearch', state.liveSearch); save('mdPreview', state.mdPreview) }
+
+    // ---- Composer + actions ---------------------------------------------
+    function loadIntoComposer(n){ $('#title').value=n.title||''; $('#body').value=n.body||''; $('#pinToggle').checked=!!n.pinned; state.color=n.color||'lemon'; state.editingId=n.id; state.composerFiles = (n.attachments||[]).map(x=>({...x})); renderColorPalette(); renderAttachedList(); $('#title').focus() }
+
+    function clearComposer(){ $('#title').value=''; $('#body').value=''; $('#pinToggle').checked=false; state.color='lemon'; state.editingId=null; state.composerFiles=[]; renderColorPalette(); renderAttachedList(); $('#title').focus() }
+
+    function validateAddSize(size){ return totalStorage().then(total=>{ if(size>MAX_FILE){ alert('File too large (limit 25 MB).'); return false } if(total+size>MAX_TOTAL){ alert('Storage limit reached (approx 400 MB).'); return false } return true }) }
+
+    async function attachFiles(files){ for(const f of files){ const ok=await validateAddSize(f.size); if(!ok) continue; const id='f_'+uid(); const meta={id, name:f.name, type:f.type, size:f.size, createdAt:now()}; await dbPutFile(meta, f); state.composerFiles.push(meta) } renderAttachedList() }
+
+    function removeComposerFile(id){ const i=state.composerFiles.findIndex(x=>x.id===id); if(i>-1){ state.composerFiles.splice(i,1); renderAttachedList() } }
+
+    async function deleteNote(id){ const idx=state.notes.findIndex(x=>x.id===id); if(idx>-1){ const n=state.notes[idx]; // delete attachments from DB
+        for(const a of (n.attachments||[])){ try{ await dbDeleteFile(a.id) }catch{} }
+        state.notes.splice(idx,1); persist(); draw() } }
+
+    function createOrUpdateNote(){ const title=$('#title').value.trim(), body=$('#body').value.trim(); if(!title && !body && state.composerFiles.length===0) return; const tags=extractTags(`${title} ${body}`), pinned=$('#pinToggle').checked; if(state.editingId){ const n=state.notes.find(n=>n.id===state.editingId); if(n){ Object.assign(n, {title, body, tags, color:state.color, pinned, attachments: state.composerFiles.slice(), updatedAt: now()}) } state.editingId=null } else { state.notes.push({ id: uid(), title, body, tags, color: state.color, pinned, attachments: state.composerFiles.slice(), archived:false, createdAt: now(), updatedAt: now(), order: state.notes.length }) } persist(); clearComposer(); draw() }
+
+    // ---- Backup / Restore -----------------------------------------------
+    async function backup(){ const includeAttachments = confirm('Include attachments in backup? (Larger file)'); const payload={ version:'2.0', exportedAt: now(), notes: state.notes };
+      if(includeAttachments){ payload.files = {}; for(const n of state.notes){ for(const a of (n.attachments||[])){ if(!payload.files[a.id]){ const rec=await dbGetFile(a.id); if(rec?.data){ const b64= await blobToBase64(rec.data); payload.files[a.id] = { meta:{id:a.id,name:a.name,type:a.type,size:a.size,createdAt:a.createdAt}, data:b64 } } } } }
+      const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stickynotes+_backup.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000) }
+
+    async function restore(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json'; inp.onchange=()=>{ const f=inp.files[0]; if(!f) return; const r=new FileReader(); r.onload=async()=>{ try{ const json=JSON.parse(r.result); if(Array.isArray(json.notes)){ state.notes=json.notes; persist(); if(json.files){ for(const id in json.files){ const {meta, data}=json.files[id]; const blob=base64ToBlob(data, meta.type); await dbPutFile(meta, blob) } } draw() } else alert('Invalid file') }catch{ alert('Invalid file') } }; r.readAsText(f) }; inp.click() }
+
+    function blobToBase64(blob){ return new Promise((res)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(blob) }) }
+    function base64ToBlob(b64, type){ const bytes=atob(b64); const buf=new Uint8Array(bytes.length); for(let i=0;i<bytes.length;i++) buf[i]=bytes.charCodeAt(i); return new Blob([buf], {type}) }
+
+    // ---- Recording --------------------------------------------------------
+    let mediaRec, recChunks=[]
+    async function toggleRecord(){ const btn=$('#recordBtn'); if(!mediaRec){ try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRec=new MediaRecorder(stream); recChunks=[]; mediaRec.ondataavailable=e=>{ if(e.data?.size) recChunks.push(e.data) }; mediaRec.onstop=async()=>{ const blob=new Blob(recChunks,{type:'audio/webm'}); if(blob.size>0){ const file=new File([blob], `recording-${Date.now()}.webm`, {type:'audio/webm'}); await attachFiles([file]) } btn.textContent='🎙️ Record' }; mediaRec.start(); btn.textContent='⏹️ Stop' } catch(e){ alert('Microphone access denied or unavailable.'); } } else { mediaRec.stop(); mediaRec.stream.getTracks().forEach(t=>t.stop()); mediaRec=null } }
+
+    // ---- Events ----------------------------------------------------------
+    $('#save').onclick=createOrUpdateNote; $('#clear').onclick=clearComposer; $('#exportBtn').onclick=backup; $('#importBtn').onclick=restore; $('#helpBtn').onclick=()=>help.showModal(); $('#newBtn').onclick=()=>{ clearComposer() }
+    $('#recordBtn').onclick=toggleRecord
+
+    $('#sort').value=state.sort; $('#sort').onchange=e=>{ state.sort=e.target.value; persist(); draw() }
+    $('#autoTag').checked=state.autoTag; $('#autoTag').onchange=e=>{ state.autoTag=e.target.checked; persist(); draw() }
+    $('#liveSearch').checked=state.liveSearch; $('#liveSearch').onchange=e=>{ state.liveSearch=e.target.checked }
+    $('#mdPreview').checked=state.mdPreview; $('#mdPreview').onchange=e=>{ state.mdPreview=e.target.checked; persist(); draw() }
+
+    $('#search').addEventListener('input', e=>{ state.query=e.target.value; if(state.liveSearch) draw() }); $('#search').addEventListener('keydown', e=>{ if(e.key==='Enter'){ draw() } })
+    $$('.tabs button').forEach(b=> b.onclick=()=>{ $$('.tabs button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.tab=b.dataset.tab; draw() })
+
+    const dz=$('#dz'); dz.addEventListener('dragover',e=>{ e.preventDefault(); dz.classList.add('drag') }); dz.addEventListener('dragleave',()=>dz.classList.remove('drag')); dz.addEventListener('drop',e=>{ e.preventDefault(); dz.classList.remove('drag'); const files=[...e.dataTransfer.files]; attachFiles(files) })
+    $('#attachBtn').onclick=()=>{ const inp=document.createElement('input'); inp.type='file'; inp.multiple=true; inp.onchange=()=> attachFiles([...inp.files]); inp.click() }
+    // Paste image support
+    document.addEventListener('paste', e=>{ if(document.activeElement===$('#body')){ const files=[...e.clipboardData.files].filter(f=>f.type.startsWith('image/')); if(files.length) attachFiles(files) } })
+
+    document.addEventListener('keydown', e=>{ const typing=isTyping(); if(e.key==='/' && !typing && document.activeElement!==$('#search')){ e.preventDefault(); $('#search').focus() } if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); createOrUpdateNote() } if(e.key.toLowerCase()==='n' && !typing){ e.preventDefault(); clearComposer() } if(e.key==='Escape'){ if(viewer.open) viewer.close(); else if(help.open) help.close(); else if(!typing) clearComposer() } })
+
+    // ---- First render ----------------------------------------------------
+    renderColorPalette(); renderAttachedList(); draw()
+
+    // Manifest (simple PWA) -----------------------------------------------
+    try{ const manifest={name:'StickyNotes+', short_name:'Notes+', start_url:'./', display:'standalone', background_color:'#0b0f14', theme_color:'#6aa3ff', icons:[]}; const mblob=new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}); const murl=URL.createObjectURL(mblob); const link=document.createElement('link'); link.rel='manifest'; link.href=murl; document.head.appendChild(link) }catch{}
+
+    // ---- Helpers ---------------------------------------------------------
+    function isTyping(){ const ae=document.activeElement; return ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA') }
+  })()
+  </script>
+</body>
+</html>
